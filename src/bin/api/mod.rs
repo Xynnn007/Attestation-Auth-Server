@@ -6,11 +6,12 @@ use std::sync::Arc;
 
 use actix_web::{body::BoxBody, web, HttpResponse, ResponseError};
 use attestation_auth_server::{
-    server::{Server, RCAR},
+    server::{Metadata, Server, RCAR},
     session::Attestation,
 };
 use kbs_types::Request;
-use log::info;
+use log::{debug, info};
+use serde::Deserialize;
 use strum::AsRefStr;
 use thiserror::Error;
 
@@ -53,4 +54,27 @@ pub async fn attest(
 
     let response = aas.attestation(attestation.0).await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+#[derive(Deserialize)]
+pub struct Register {
+    id: String,
+    policy_ids: Vec<String>,
+}
+
+pub async fn register(
+    req: web::Json<Register>,
+    aas: web::Data<Arc<Server>>,
+) -> Result<HttpResponse> {
+    info!("new instance registering.");
+
+    aas.register_id(
+        &req.id,
+        Metadata {
+            policy_ids: req.policy_ids.to_owned(),
+        },
+    )?;
+
+    debug!("Instance id {} registered.", req.id);
+    Ok(HttpResponse::Ok().finish())
 }

@@ -32,7 +32,7 @@ pub trait RCAR {
 }
 
 pub struct Metadata {
-    policy_ids: Vec<String>,
+    pub policy_ids: Vec<String>,
 }
 
 pub struct Server {

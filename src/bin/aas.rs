@@ -12,7 +12,7 @@ use actix_web::{
     App, HttpServer,
 };
 use anyhow::Result;
-use api::{attest, auth};
+use api::{attest, auth, register};
 use attestation_auth_server::builder::ServerBuilder;
 use clap::Parser;
 use configs::Config;
@@ -30,11 +30,14 @@ pub struct Cli {
 #[derive(EnumString, AsRefStr)]
 #[strum(serialize_all = "lowercase")]
 enum WebApi {
-    #[strum(serialize = "/auth")]
+    #[strum(serialize = "/rcar/auth")]
     Auth,
 
-    #[strum(serialize = "/attest")]
+    #[strum(serialize = "/rcar/attest")]
     Attest,
+
+    #[strum(serialize = "/register")]
+    Register,
 }
 
 #[tokio::main]
@@ -59,6 +62,7 @@ async fn main() -> Result<()> {
         App::new()
             .service(web::resource(WebApi::Auth.as_ref()).route(web::post().to(auth)))
             .service(web::resource(WebApi::Attest.as_ref()).route(web::post().to(attest)))
+            .service(web::resource(WebApi::Register.as_ref()).route(web::post().to(register)))
             .app_data(web::Data::clone(&server))
     })
     .bind((config.socket.ip(), config.socket.port()))?
