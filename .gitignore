@@ -1,1 +1,6 @@
 /target
+ca.key
+ca.crt
+localhost.crt
+localhost.key
+docker-compose/aas/*

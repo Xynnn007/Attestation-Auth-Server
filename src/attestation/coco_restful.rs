@@ -7,6 +7,7 @@ use kbs_types::Tee;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+#[derive(Debug)]
 pub struct Client {
     addr: String,
     client: reqwest::Client,
@@ -56,12 +57,14 @@ impl Client {
         evidence: &str,
         policy_ids: Vec<&str>,
         nonce: &str,
+        csr: &str,
         tee: Tee,
     ) -> Result<()> {
         let req = AttestationRequest {
             tee: to_tee_string(tee),
             evidence: evidence.into(),
             runtime_data: Some(Data::Structured(json!({
+                "csr": csr,
                 "nonce": nonce
             }))),
             init_data: None,

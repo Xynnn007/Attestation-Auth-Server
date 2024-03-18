@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 
 use attestation_auth_server::{
     attestation::{coco_restful::Client as CoCoRestfulClient, AttestationService},
-    ca::{SampleCA, CA},
+    ca::{ManualCA, SampleCA, CA},
 };
 use config::File;
 use serde::Deserialize;
@@ -16,7 +16,9 @@ pub struct Config {
     pub attestation_timeout: i64,
     pub attestation_service: ASConfig,
     pub ca: CaConfig,
-    pub key: String,
+    pub https_private_key: String,
+    pub https_cert: String,
+    pub client_root_ca_cert: String,
     pub socket: SocketAddr,
 }
 
@@ -54,6 +56,10 @@ impl TryInto<AttestationService> for ASConfig {
 #[derive(Deserialize)]
 pub enum CaConfig {
     Sample,
+    Manual {
+        private_key: String,
+        public_key_cert: String,
+    },
 }
 
 impl TryInto<CA> for CaConfig {
@@ -62,6 +68,10 @@ impl TryInto<CA> for CaConfig {
     fn try_into(self) -> Result<CA, Self::Error> {
         match self {
             CaConfig::Sample {} => Ok(CA::Sample(SampleCA {})),
+            CaConfig::Manual {
+                private_key,
+                public_key_cert,
+            } => Ok(CA::Manual(ManualCA::new(private_key, public_key_cert)?)),
         }
     }
 }

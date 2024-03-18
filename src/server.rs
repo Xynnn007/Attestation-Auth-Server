@@ -2,8 +2,6 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
-
 use crate::{
     attestation::AttestationService,
     ca::CA,
@@ -12,17 +10,11 @@ use crate::{
 
 use anyhow::*;
 use async_trait::async_trait;
-use ecdsa::der::Signature;
 use kbs_types::{Challenge, Request};
-use p256::ecdsa::SigningKey;
-use scc::HashMap;
+use log::info;
+// use rustls::server::{danger::ClientCertVerifier, WebPkiClientVerifier};
+use scc::{HashMap, HashSet};
 use serde_json::Value;
-use x509_cert::{
-    builder::{Builder, RequestBuilder},
-    der::{asn1::Ia5String, EncodePem},
-    ext::pkix::{name::GeneralName, SubjectAltName},
-    name::Name,
-};
 
 #[async_trait]
 pub trait RCAR {
@@ -31,14 +23,27 @@ pub trait RCAR {
     async fn attestation(&self, attestation: Attestation) -> Result<Response>;
 }
 
+#[async_trait]
+pub trait AccessControl {
+    async fn register_user(
+        &self,
+        id: &str,
+        policy_ids: Vec<String>,
+        allowed_resources: Vec<String>,
+    ) -> Result<()>;
+
+    async fn get_resource(&self, rid: &str, id: &str) -> Result<Vec<u8>>;
+}
+
+#[derive(Debug)]
 pub struct Metadata {
     pub policy_ids: Vec<String>,
+    pub allowed_resources: HashSet<String>,
 }
 
 pub struct Server {
     pub(crate) ca: CA,
     pub(crate) registered_identities: HashMap<String, (Metadata, SessionStatus)>,
-    pub(crate) signer: SigningKey,
     pub(crate) attestation_service: AttestationService,
 
     pub(crate) attestation_timeout: i64,
@@ -47,6 +52,7 @@ pub struct Server {
 #[async_trait]
 impl RCAR for Server {
     async fn request(&self, request: Request) -> Result<Challenge> {
+        info!("RCAR request: {request:?}");
         let extra_params: Value = serde_json::from_str(&request.extra_params)?;
 
         let Some(id) = extra_params.get("id").and_then(|id| id.as_str()) else {
@@ -77,35 +83,38 @@ impl RCAR for Server {
                 &attestation.tee_evidence,
                 meta.0.policy_ids.iter().map(|id| &id[..]).collect(),
                 meta.1.nonce(),
+                &attestation.csr,
                 *meta.1.tee(),
             )
             .await?;
 
-        let csr = self.generate_csr(&attestation.id)?;
+        let csr = attestation.csr;
         let crt = self.ca.issue_cert(&csr).await?;
         meta.1.attest();
         Ok(Response { crt })
     }
 }
 
-impl Server {
-    fn generate_csr(&self, id: &str) -> Result<String> {
-        let subject = Name::from_str("CN=confidential-containers")?;
-        let mut builder = RequestBuilder::new(subject, &self.signer)?;
-        builder.add_extension(&SubjectAltName(vec![
-            GeneralName::UniformResourceIdentifier(Ia5String::new(id)?),
-        ]))?;
-
-        let cert_req = builder.build::<Signature<_>>()?;
-        let pem = cert_req.to_pem(x509_cert::der::pem::LineEnding::LF)?;
-        Ok(pem)
-    }
-
-    pub fn register_id(&self, id: &str, metadata: Metadata) -> Result<()> {
+#[async_trait]
+impl AccessControl for Server {
+    async fn register_user(
+        &self,
+        id: &str,
+        policy_ids: Vec<String>,
+        allowed_resources: Vec<String>,
+    ) -> Result<()> {
         if self.registered_identities.contains(id) {
             bail!("id already registered");
         }
 
+        let allowed_resources_set = HashSet::new();
+        allowed_resources.into_iter().for_each(|ar| {
+            let _ = allowed_resources_set.insert(ar);
+        });
+        let metadata = Metadata {
+            policy_ids,
+            allowed_resources: allowed_resources_set,
+        };
         let _ = self.registered_identities.insert(
             id.to_string(),
             (metadata, SessionStatus::UnRegistered { id: id.to_string() }),
@@ -113,44 +122,21 @@ impl Server {
 
         Ok(())
     }
+
+    async fn get_resource(&self, rid: &str, id: &str) -> Result<Vec<u8>> {
+        info!("{id} wants to retrieve {rid}...");
+        let Some(state) = self.registered_identities.get(id) else {
+            bail!("no this user id");
+        };
+
+        let state = state.get();
+
+        if !state.0.allowed_resources.contains(rid) {
+            bail!("not authorizd");
+        }
+
+        info!("resource {rid} retrieved!");
+
+        Ok(vec![])
+    }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use crate::{
-//         builder::ServerBuilder,
-//         ca::SampleCA,
-//         server::{Attestation, Metadata, Request, RCAR},
-//     };
-
-//     #[tokio::test]
-//     async fn rcar() {
-//         let id = "spiffe://confidential-containers/example/1";
-//         let meta = Metadata {
-//             policy_id: "default".into(),
-//         };
-
-//         let mut server = ServerBuilder::new()
-//             .with_ca(Box::new(SampleCA {}))
-//             .with_random_key()
-//             .build();
-
-//         server.register_id(id, meta).unwrap();
-
-//         let request = Request {
-//             version: "0.2.0".into(),
-//             tee: kbs_types::Tee::Tdx,
-//             extra_params: format!("{{\"id\":\"{id}\"}}"),
-//         };
-//         let challenge = server.request(request).await.unwrap();
-//         println!("{challenge:#?}");
-
-//         let attestation = Attestation {
-//             csr: todo!(),
-//             tee_evidence: todo!(),
-//             id: todo!(),
-//         };
-//         let res = server.attestation(attestation).await.unwrap();
-//         println!("{res:#?}");
-//     }
-// }

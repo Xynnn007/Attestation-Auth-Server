@@ -1,0 +1,22 @@
+attestation_timeout = 50
+https_private_key = """
+@HTTPS_PRIVATE_KEY@
+"""
+https_cert = """
+@HTTPS_CERT@
+"""
+client_root_ca_cert = """
+@CLIENT_ROOT_CA_CERT@
+"""
+socket = "0.0.0.0:8080"
+
+[attestation_service.restfulcoco]
+addr = "http://aas:50004"
+
+[ca.manual]
+private_key = """
+@CLIENT_CA_PRIVATE_KEY@
+"""
+public_key_cert = """
+@CLIENT_CA_CERT@
+"""

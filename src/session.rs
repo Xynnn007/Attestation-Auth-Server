@@ -32,6 +32,7 @@ pub struct Response {
 }
 
 /// Finite State Machine model for RCAR handshake
+#[derive(Debug)]
 pub(crate) enum SessionStatus {
     UnRegistered {
         id: String,
@@ -51,7 +52,7 @@ pub(crate) enum SessionStatus {
 
 impl SessionStatus {
     pub fn auth(&mut self, request: Request, timeout: i64) -> Challenge {
-        let timeout = Utc::now() + Duration::seconds(timeout);
+        let timeout = Utc::now() + Duration::try_seconds(timeout).unwrap();
 
         let nonce = nonce();
         *self = Self::Authed {

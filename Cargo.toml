@@ -11,6 +11,7 @@ required-features = ["bin"]
 
 [dependencies]
 actix-web = { version = "4", optional = true }
+actix-tls = { version = "3.3.0", optional = true }
 
 anyhow = "1.0"
 async-trait = "0.1.77"
@@ -30,6 +31,9 @@ rand = "0.8.5"
 rcgen = { version = "0.12.1", features = ["x509-parser"]}
 reqwest = "0.11.24"
 
+rustls = { version = "0.21", optional = true }
+rustls-pemfile = { version = "1", optional = true }
+
 scc = "2"
 
 serde = "1"
@@ -39,11 +43,11 @@ sha2 = { version = "0.10", features = ["oid"] }
 strum = { version = "0.25", features = ["derive"], optional = true }
 thiserror = { version = "1.0", optional = true }
 tokio = { version = "1", features = ["sync"]}
-x509-cert = { version = "0.2.5", features = ["builder"]}
+x509-parser = "0.16.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros"]}
 
 [features]
 default = ["bin"]
-bin = ["actix-web", "clap", "env_logger", "strum", "thiserror", "tokio/rt-multi-thread"]
+bin = ["actix-web", "clap", "env_logger", "rustls", "rustls-pemfile", "strum", "thiserror", "tokio/rt-multi-thread", "tokio/fs", "tokio/rt", "tokio/macros", "actix-web/rustls-0_21", "actix-tls"]
